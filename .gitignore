@@ -1,0 +1,27 @@
+.claude
+.code-workspace
+
+
+# Secrets / env — keep only the *.example files in git.
+.env
+.env.local
+.env.*.local
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Logs
+*.log
+
+# Python virtualenv
+venv/
+.venv/
+
+# Django collectstatic output (regenerated from source)
+staticfiles/
+
+# Frontend build output (regenerated from source)
+frontend/build/
+frontend/node_modules/

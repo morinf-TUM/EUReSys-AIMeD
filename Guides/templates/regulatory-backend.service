@@ -1,0 +1,32 @@
+# systemd unit template for the regulatory system backend.
+#
+# Edit every occurrence of `your-linux-user` to the Linux account that
+# owns the install dir. If coexisting with a dev install, also change:
+#   - WorkingDirectory, PATH, EnvironmentFile, ExecStart paths, log paths
+#     → /home/your-linux-user/code/rehearsal/prod
+#   - --bind port → 8001 (so it doesn't clash with dev's :8000)
+
+[Unit]
+Description=Regulatory System Backend (gunicorn)
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=notify
+User=your-linux-user
+Group=www-data
+WorkingDirectory=/home/your-linux-user/regulatory_system
+Environment="PATH=/home/your-linux-user/regulatory_system/venv/bin"
+EnvironmentFile=/home/your-linux-user/regulatory_system/.env
+ExecStart=/home/your-linux-user/regulatory_system/venv/bin/gunicorn \
+    --workers 3 \
+    --bind 127.0.0.1:8000 \
+    --timeout 120 \
+    --access-logfile /home/your-linux-user/regulatory_system/gunicorn-access.log \
+    --error-logfile /home/your-linux-user/regulatory_system/gunicorn-error.log \
+    backend.wsgi:application
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

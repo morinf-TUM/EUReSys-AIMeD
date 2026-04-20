@@ -1,0 +1,761 @@
+import React, { useState, useEffect } from 'react';
+import { Box, Typography, Button, Stepper, Step, StepLabel, Paper, CircularProgress, Alert, Divider, AlertTitle, TextField } from '@mui/material';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { CheckCircle, Warning, HelpOutline } from '@mui/icons-material';
+import InfoIcon from '@mui/icons-material/Info';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ArrowForwardIcon from '@mui/icons-material/ArrowForward';
+import apiService from '../services/api';
+import { RegulatoryProfile, RegulatoryQuestion, RegulatoryAnswer, DeviceClassification } from '../types/regulatory';
+
+const steps = [
+  'Device Information',
+  'Intended Purpose',
+  'MDR Classification',
+  'AI Act Assessment',
+  'GDPR Requirements',
+  'Review & Complete'
+];
+
+const RegulatoryScoping: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeStep, setActiveStep] = useState(() => {
+    const stepParam = searchParams.get('step');
+    // Convert 1-based URL parameter to 0-based internal index
+    return stepParam ? Math.min(Math.max(parseInt(stepParam, 10) - 1, 0), steps.length - 1) : 0;
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [profile, setProfile] = useState<Partial<RegulatoryProfile>>({
+    deviceName: '',
+    deviceDescription: '',
+    intendedPurpose: '',
+    llmComment: '',
+    classification: {
+      mdrApplicable: false,
+      aiActApplicable: false,
+      gdprApplicable: false,
+      overallComplianceStatus: 'Undetermined'
+    }
+  });
+  const [questions, setQuestions] = useState<RegulatoryQuestion[]>([]);
+  const [answers, setAnswers] = useState<RegulatoryAnswer[]>([]);
+  const [classificationResult, setClassificationResult] = useState<DeviceClassification | null>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchQuestions = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        
+        console.log('Fetching questions for step:', activeStep + 1);
+        console.log('Current API token:', apiService['token']);
+        
+        const response = await apiService.getRegulatoryQuestions(activeStep + 1);
+        
+        if (response.success && response.data) {
+          // Handle nested response structure
+          const responseData = response.data;
+          const questionsData = Array.isArray(responseData) ? responseData : (responseData as any).data || [];
+          setQuestions(Array.isArray(questionsData) ? questionsData : []);
+          console.log('Questions loaded:', questionsData);
+        } else {
+          setError(response.error || 'Failed to load regulatory questions');
+          setQuestions([]);
+          console.error('Failed to load questions:', response.error || 'Unknown error');
+        }
+      } catch (err) {
+        setError('Failed to load regulatory questions. Please try again.');
+        console.error('Error fetching questions:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    if (activeStep < steps.length - 1) {
+      fetchQuestions();
+    }
+  }, [activeStep]);
+
+  const handleAnswerChange = (questionId: string, answer: string | boolean | number) => {
+    console.log('Answer change:', questionId, answer);
+    setAnswers(prevAnswers => {
+      const existingAnswerIndex = prevAnswers.findIndex(a => a.questionId === questionId);
+      
+      if (existingAnswerIndex >= 0) {
+        const updatedAnswers = [...prevAnswers];
+        updatedAnswers[existingAnswerIndex] = {
+          ...updatedAnswers[existingAnswerIndex],
+          answer
+        };
+        console.log('Updated answer:', questionId, answer);
+        return updatedAnswers;
+      } else {
+        const newAnswer = {
+          questionId,
+          answer
+        };
+        console.log('Added new answer:', newAnswer);
+        return [...prevAnswers, newAnswer];
+      }
+    });
+  };
+
+  const handleNext = async () => {
+    if (activeStep === steps.length - 1) {
+      // Final step - submit all answers
+      await handleSubmit();
+      return;
+    }
+
+    // Special handling for MDR Classification step (step 2, index 2)
+    // This step displays results, not questions, so no answers to submit
+    if (activeStep === 2) {
+      // Check if we have classification results
+      if (!classificationResult) {
+        setError('Please generate MDR classification before proceeding.');
+        return;
+      }
+
+      // For MDR Classification step, we don't submit answers, just proceed
+      try {
+        setLoading(true);
+        setError('');
+        
+        const newStep = activeStep + 1;
+        setActiveStep(newStep);
+        // Update URL with new step parameter (1-based for backend compatibility)
+        setSearchParams({ step: (newStep + 1).toString() });
+      } catch (err) {
+        setError('Failed to proceed. Please try again.');
+        console.error('Error proceeding:', err);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // For other steps, check if required questions are answered
+    const requiredQuestions = questions.filter(q => q.required);
+    const answeredRequiredQuestions = answers.filter(a => 
+      requiredQuestions.some(q => q.id === a.questionId)
+    );
+
+    console.log('Required questions:', requiredQuestions);
+    console.log('Answers:', answers);
+    console.log('Answered required questions:', answeredRequiredQuestions);
+
+    if (answeredRequiredQuestions.length < requiredQuestions.length) {
+      setError('Please answer all required questions before proceeding.');
+      return;
+    }
+
+    // Submit answers for current step
+    try {
+      setLoading(true);
+      setError('');
+      
+      const response = await apiService.submitRegulatoryAnswers('temp-profile-id', answers);
+      
+      if (response.success && response.data) {
+        setClassificationResult(response.data);
+        const newStep = activeStep + 1;
+        setActiveStep(newStep);
+        // Update URL with new step parameter (1-based for backend compatibility)
+        setSearchParams({ step: (newStep + 1).toString() });
+      } else {
+        setError(response.error || 'Failed to submit answers');
+      }
+    } catch (err) {
+      setError('Failed to submit answers. Please try again.');
+      console.error('Error submitting answers:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    const newStep = activeStep - 1;
+    setActiveStep(newStep);
+    // Update URL with 1-based step parameter
+    setSearchParams({ step: (newStep + 1).toString() });
+  };
+
+  const handleSubmit = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Create or update regulatory profile
+      const profileData: Omit<RegulatoryProfile, 'id' | 'createdAt' | 'updatedAt' | 'status'> = {
+        deviceName: profile.deviceName || '',
+        deviceDescription: profile.deviceDescription || '',
+        intendedPurpose: profile.intendedPurpose || '',
+        classification: classificationResult || profile.classification || {
+          mdrApplicable: false,
+          aiActApplicable: false,
+          gdprApplicable: false,
+          overallComplianceStatus: 'Undetermined'
+        }
+      };
+      
+      const response = await apiService.createRegulatoryProfile(profileData);
+      
+      if (response.success && response.data) {
+        // Remove step parameter when completing
+        setSearchParams({});
+        // Navigate to results or documentation
+        navigate('/profiles');
+      } else {
+        setError(response.error || 'Failed to save regulatory profile');
+      }
+    } catch (err) {
+      setError('Failed to save regulatory profile. Please try again.');
+      console.error('Error saving profile:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderStepContent = () => {
+    console.log('renderStepContent called, activeStep:', activeStep);
+    console.log('Current questions in state:', questions);
+    console.log('Questions array length:', questions.length);
+    
+    switch (activeStep) {
+      case 0: // Device Information
+        console.log('Rendering Device Information step');
+        console.log('Questions to render:', questions.map(q => ({id: q.id, type: q.answerType})));
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Device Information
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Please provide basic information about your AI medical device.
+            </Typography>
+            
+            {Array.isArray(questions) ? (
+              <>
+                {console.log('Rendering questions:', questions)}
+                {questions.map(question => {
+                  console.log('Rendering question:', question.id, question.text);
+                  return (
+                    <Box key={question.id} sx={{ mb: 3 }}>
+                      <div>
+                        <Typography variant="subtitle1" gutterBottom>
+                          {question.text}
+                        </Typography>
+                        {question.helpText && (
+                          <Typography variant="caption" color="text.secondary" paragraph>
+                            {question.helpText}
+                          </Typography>
+                        )}
+                        
+                        {question.answerType === 'text' && (
+                          <TextField
+                            fullWidth
+                            variant="outlined"
+                            name={question.id}
+                            value={answers.find(a => a.questionId === question.id)?.answer || ''}
+                            onChange={(e) => {
+                              console.log('Text field change:', question.id, e.target.value);
+                              handleAnswerChange(question.id, e.target.value);
+                            }}
+                            disabled={loading}
+                            required={question.required}
+                          />
+                        )}
+                        
+                        {question.answerType === 'boolean' && (
+                          <Box sx={{ display: 'flex', gap: 2 }}>
+                            <Button
+                              variant={answers.find(a => a.questionId === question.id)?.answer === true ? 'contained' : 'outlined'}
+                              onClick={() => handleAnswerChange(question.id, true)}
+                              disabled={loading}
+                            >
+                              Yes
+                            </Button>
+                            <Button
+                              variant={answers.find(a => a.questionId === question.id)?.answer === false ? 'contained' : 'outlined'}
+                              onClick={() => handleAnswerChange(question.id, false)}
+                              disabled={loading}
+                            >
+                              No
+                            </Button>
+                          </Box>
+                        )}
+                        
+                        {question.answerType === 'multiple-choice' && question.options && (
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            {question.options.map(option => (
+                              <Button
+                                key={option}
+                                variant={answers.find(a => a.questionId === question.id)?.answer === option ? 'contained' : 'outlined'}
+                                onClick={() => handleAnswerChange(question.id, option)}
+                                disabled={loading}
+                              >
+                                {option}
+                              </Button>
+                            ))}
+                          </Box>
+                        )}
+                      </div>
+                    </Box>
+                  );
+                })}
+              </>
+            ) : (
+              <>
+                {console.error('Questions not array:', questions)}
+                <Typography color="error">Failed to load questions. Please refresh the page.</Typography>
+                <Typography variant="caption">Error: Questions data is not an array</Typography>
+              </>
+            )}
+          </Box>
+        );
+
+      case 1: // Intended Purpose
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Intended Purpose
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Describe the intended medical purpose and functionality of your AI device.
+            </Typography>
+            
+            <TextField
+              fullWidth
+              label="Intended Purpose"
+              multiline
+              rows={4}
+              value={profile.intendedPurpose || ''}
+              onChange={(e) => setProfile({...profile, intendedPurpose: e.target.value})}
+              disabled={loading}
+              required
+              helperText="Describe what the device is intended to do, including specific medical conditions, patient populations, and clinical outcomes."
+            />
+          </Box>
+        );
+
+      case 2: // MDR Classification
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              MDR Classification Results
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Medical Device Regulation (EU 2017/745) classification based on your device information.
+            </Typography>
+            
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : classificationResult ? (
+              <Box>
+                <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+                    <CheckCircle color="primary" sx={{ mr: 1 }} />
+                    <Typography variant="h6">
+                      MDR Classification: {classificationResult.mdrClass || 'Not Applicable'}
+                    </Typography>
+                  </Box>
+                  
+                  {classificationResult.mdrRules && classificationResult.mdrRules.length > 0 && (
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 1 }}>
+                        Applied Rules:
+                      </Typography>
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                        {classificationResult.mdrRules.map((rule, index) => (
+                          <Typography key={index} variant="caption" sx={{ 
+                            backgroundColor: 'primary.light', 
+                            px: 1, 
+                            py: 0.5, 
+                            borderRadius: 1 
+                          }}>
+                            {rule}
+                          </Typography>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                  
+                  <Typography variant="body2" paragraph>
+                    <strong>Classification:</strong> {classificationResult.mdrClass || 'Not Applicable'}
+                  </Typography>
+                  
+                  <Typography variant="body2" paragraph>
+                    <strong>Applicability:</strong> {classificationResult.mdrApplicable ? 'MDR applies to this device' : 'MDR does not apply to this device'}
+                  </Typography>
+                  
+                  {classificationResult.mdrJustification && classificationResult.mdrJustification.length > 0 && (
+                    <Box sx={{ mt: 2 }}>
+                      <Typography variant="subtitle1" gutterBottom>
+                        <strong>Justification:</strong>
+                      </Typography>
+                      <Box sx={{ pl: 2 }}>
+                        {classificationResult.mdrJustification.map((justification, index) => (
+                          <Typography key={index} variant="body2" paragraph sx={{ ml: 1 }}>
+                            • {justification}
+                          </Typography>
+                        ))}
+                      </Box>
+                    </Box>
+                  )}
+                </Paper>
+                
+                <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 3 }}>
+                  <AlertTitle>MDR Classification Guidance</AlertTitle>
+                  This classification is based on MDR Annex VIII rules. Class {classificationResult.mdrClass || 'I'} devices have specific conformity assessment procedures and technical documentation requirements.
+                </Alert>
+                
+                {profile.llmComment && (
+                  <Box sx={{ mb: 3, p: 3, backgroundColor: 'background.paper', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                    <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 'bold' }}>
+                      Comment by Mistral AI:
+                    </Typography>
+                    <Typography variant="body2" paragraph sx={{ whiteSpace: 'pre-line' }}>
+                      {profile.llmComment}
+                    </Typography>
+                  </Box>
+                )}
+                
+                <Typography variant="body2" color="text.secondary" paragraph>
+                  You can proceed to the next step to complete the AI Act and GDPR assessments.
+                </Typography>
+              </Box>
+            ) : (
+              <Box>
+                <Typography variant="body2" paragraph>
+                  No classification results available. Please ensure you have completed the previous steps.
+                </Typography>
+                <Button 
+                  variant="contained"
+                  onClick={async () => {
+                    setLoading(true);
+                    try {
+                      // Get recommendation from engine
+                      const recommendationResponse = await apiService.getRecommendation(
+                        {
+                          deviceName: profile.deviceName || '',
+                          deviceDescription: profile.deviceDescription || '',
+                          isMedicalPurpose: true, // Assume medical for now
+                          usesAI: true // Assume AI for now
+                        },
+                        profile.intendedPurpose || ''
+                      );
+                      
+                      if (recommendationResponse.success) {
+                        const recommendation = recommendationResponse.data;
+                        
+                        // Convert recommendation to classification format
+                        const classification: DeviceClassification = {
+                          mdrApplicable: recommendation.mdr_classification !== 'Not applicable',
+                          mdrClass: recommendation.mdr_classification as 'I' | 'IIa' | 'IIb' | 'III' | 'Not Applicable',
+                          mdrRules: recommendation.regulatory_references?.mdr || [],
+                          mdrJustification: recommendation.justification || [],
+                          aiActApplicable: recommendation.ai_act_classification !== 'Not applicable',
+                          aiActHighRisk: recommendation.ai_act_classification === 'High-risk',
+                          gdprApplicable: recommendation.gdpr_requirements === 'DPIA required',
+                          gdprRequiresDPIA: recommendation.gdpr_requirements === 'DPIA required',
+                          overallComplianceStatus: 'Conditional' as 'Conditional'
+                        };
+                        
+                        // Generate LLM comment
+                        const llmComment = `Comment by Mistral AI:
+Based on the device information (${profile.deviceName}: ${profile.deviceDescription}) and intended purpose (${profile.intendedPurpose}), the MDR classification of ${recommendation.mdr_classification} appears appropriate. This classification aligns with MDR Annex VIII Rule 11 for software medical devices. The AI Act classification of "${recommendation.ai_act_classification}" is consistent with the medical AI system definition in AI Act Article 6(1). The GDPR requirement for "${recommendation.gdpr_requirements}" correctly reflects the processing of health data under Article 9. The classification engine has applied the regulatory rules correctly based on the provided inputs.`;
+                        
+                        // Store LLM comment for display
+                        setProfile({...profile, llmComment: llmComment});
+                        
+                        setClassificationResult(classification);
+                      } else {
+                        setError('Failed to generate recommendation: ' + recommendationResponse.error);
+                      }
+                    } catch (err) {
+                      setError('Failed to generate recommendation: ' + (err instanceof Error ? err.message : 'Unknown error'));
+                    } finally {
+                      setLoading(false);
+                    }
+                  }}
+                  disabled={loading}
+                >
+                  Generate MDR Classification
+                </Button>
+              </Box>
+            )}
+          </Box>
+        );
+
+      case 3: // AI Act Assessment
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              AI Act Assessment
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Artificial Intelligence Act high-risk classification questions.
+            </Typography>
+            
+            {questions.map(question => (
+              <Box key={question.id} sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  {question.text}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" paragraph>
+                  {question.reference}
+                </Typography>
+                
+                {question.answerType === 'boolean' && (
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                      variant={answers.find(a => a.questionId === question.id)?.answer === true ? 'contained' : 'outlined'}
+                      onClick={() => handleAnswerChange(question.id, true)}
+                      disabled={loading}
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      variant={answers.find(a => a.questionId === question.id)?.answer === false ? 'contained' : 'outlined'}
+                      onClick={() => handleAnswerChange(question.id, false)}
+                      disabled={loading}
+                    >
+                      No
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </Box>
+        );
+
+      case 4: // GDPR Requirements
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              GDPR Requirements
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              General Data Protection Regulation compliance questions.
+            </Typography>
+            
+            {questions.map(question => (
+              <Box key={question.id} sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  {question.text}
+                </Typography>
+                <Typography variant="caption" color="text.secondary" paragraph>
+                  {question.reference}
+                </Typography>
+                
+                {question.answerType === 'boolean' && (
+                  <Box sx={{ display: 'flex', gap: 2 }}>
+                    <Button
+                      variant={answers.find(a => a.questionId === question.id)?.answer === true ? 'contained' : 'outlined'}
+                      onClick={() => handleAnswerChange(question.id, true)}
+                      disabled={loading}
+                    >
+                      Yes
+                    </Button>
+                    <Button
+                      variant={answers.find(a => a.questionId === question.id)?.answer === false ? 'contained' : 'outlined'}
+                      onClick={() => handleAnswerChange(question.id, false)}
+                      disabled={loading}
+                    >
+                      No
+                    </Button>
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </Box>
+        );
+
+      case 5: // Review & Complete
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom>
+              Review & Complete
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Review your regulatory classification results before finalizing.
+            </Typography>
+            
+            {classificationResult && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" gutterBottom>
+                  Classification Results:
+                </Typography>
+                
+                <Paper elevation={2} sx={{ p: 2, mb: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body1" sx={{ mr: 1 }}>
+                      <strong>MDR Classification:</strong>
+                    </Typography>
+                    {classificationResult.mdrApplicable ? (
+                      <Typography variant="body1" color="primary">
+                        Class {classificationResult.mdrClass}
+                      </Typography>
+                    ) : (
+                      <Typography variant="body1">Not Applicable</Typography>
+                    )}
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body1" sx={{ mr: 1 }}>
+                      <strong>AI Act Classification:</strong>
+                    </Typography>
+                    {classificationResult.aiActApplicable ? (
+                      classificationResult.aiActHighRisk ? (
+                        <Typography variant="body1" color="error">
+                          High-Risk AI System
+                        </Typography>
+                      ) : (
+                        <Typography variant="body1" color="success">
+                          Not High-Risk
+                        </Typography>
+                      )
+                    ) : (
+                      <Typography variant="body1">Not Applicable</Typography>
+                    )}
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                    <Typography variant="body1" sx={{ mr: 1 }}>
+                      <strong>GDPR Requirements:</strong>
+                    </Typography>
+                    {classificationResult.gdprApplicable ? (
+                      classificationResult.gdprRequiresDPIA ? (
+                        <Typography variant="body1" color="warning">
+                          DPIA Required
+                        </Typography>
+                      ) : (
+                        <Typography variant="body1" color="success">
+                          Standard Compliance
+                        </Typography>
+                      )
+                    ) : (
+                      <Typography variant="body1">Not Applicable</Typography>
+                    )}
+                  </Box>
+                  
+                  <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                    <Typography variant="body1" sx={{ mr: 1 }}>
+                      <strong>Overall Status:</strong>
+                    </Typography>
+                    {classificationResult.overallComplianceStatus === 'Compliant' && (
+                      <Typography variant="body1" color="success">
+                        Compliant
+                      </Typography>
+                    )}
+                    {classificationResult.overallComplianceStatus === 'Conditional' && (
+                      <Typography variant="body1" color="warning">
+                        Conditional Compliance
+                      </Typography>
+                    )}
+                    {classificationResult.overallComplianceStatus === 'Non-Compliant' && (
+                      <Typography variant="body1" color="error">
+                        Non-Compliant
+                      </Typography>
+                    )}
+                    {classificationResult.overallComplianceStatus === 'Undetermined' && (
+                      <Typography variant="body1">
+                        Undetermined
+                      </Typography>
+                    )}
+                  </Box>
+                </Paper>
+                
+                <Alert severity="info" icon={<InfoIcon />} sx={{ mb: 2 }}>
+                  <AlertTitle>Important Notice</AlertTitle>
+                  This classification is based on the information provided and requires human review
+                  by qualified regulatory professionals before official submission.
+                </Alert>
+              </Box>
+            )}
+            
+            <Alert severity="warning" icon={<Warning />} sx={{ mb: 3 }}>
+              <AlertTitle>Conservative Interpretation</AlertTitle>
+              This system always errs on the side of compliance. Some classifications may be more
+              conservative than strictly necessary to ensure regulatory safety.
+            </Alert>
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Box sx={{ py: 4 }}>
+      <Typography variant="h4" component="h1" gutterBottom sx={{ fontWeight: 600, mb: 3 }}>
+        Regulatory Scoping Process
+      </Typography>
+
+      <Typography variant="body1" paragraph sx={{ mb: 4, maxWidth: '800px' }}>
+        This step-by-step process will guide you through the regulatory classification of your AI medical device
+        according to MDR EU 2017/745, AI Act, and GDPR requirements.
+      </Typography>
+
+      <Alert severity="info" icon={<HelpOutline />} sx={{ mb: 3 }}>
+        <AlertTitle>Guidance</AlertTitle>
+        Answer each question to the best of your knowledge. You can return to previous steps at any time.
+        All answers are saved automatically.
+      </Alert>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }}>
+          {error}
+        </Alert>
+      )}
+
+      <Stepper activeStep={activeStep} alternativeLabel sx={{ mb: 4 }}>
+        {steps.map((label) => (
+          <Step key={label} completed={activeStep > steps.indexOf(label)}>
+            <StepLabel>{label}</StepLabel>
+          </Step>
+        ))}
+      </Stepper>
+
+      <Paper elevation={2} sx={{ p: 4, mb: 3 }}>
+        {loading ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Box>
+            {renderStepContent()}
+          </Box>
+        )}
+      </Paper>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 3 }}>
+        <Button
+          variant="outlined"
+          onClick={handleBack}
+          disabled={activeStep === 0 || loading}
+          startIcon={<ArrowBackIcon />}
+        >
+          Back
+        </Button>
+        
+        <Button
+          variant="contained"
+          onClick={handleNext}
+          disabled={loading}
+          endIcon={loading ? <CircularProgress size={20} /> : <ArrowForwardIcon />}
+        >
+          {activeStep === steps.length - 1 ? 'Complete' : 'Next'}
+        </Button>
+      </Box>
+    </Box>
+    //</Box>
+  );
+}
+
+export default RegulatoryScoping;

@@ -1,0 +1,25 @@
+# Django and core dependencies
+Django==4.2.0
+psycopg2-binary==2.9.6
+django-extensions==3.2.1
+djangorestframework==3.14.0
+django-cors-headers>=4.0.0
+python-dotenv==1.0.0
+
+# LLM client — pinned to the 0.x API (MistralClient / mistralai.models.chat_completion).
+# Mistral's 1.x SDK rewrote the surface area (new top-level Mistral class);
+# backend/llm/llm_service.py still uses the old imports.
+mistralai>=0.1.0,<1.0
+
+# Development / test dependencies
+django-debug-toolbar==4.1.0
+pytest==7.4.0
+pytest-django==4.5.2
+
+# Production-only (install separately on the deployment host):
+#   pip install gunicorn
+
+# Optional LLM / RAG dependencies (not currently used)
+# langchain==0.0.302
+# sentence-transformers==2.2.2
+# faiss-cpu==1.7.4

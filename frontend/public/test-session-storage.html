@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SessionStorage Test</title>
+</head>
+<body>
+    <h1>SessionStorage Diagnostic</h1>
+    <button onclick="checkStorage()">Check SessionStorage</button>
+    <button onclick="testNavigation()">Test Navigation with State</button>
+    <pre id="output"></pre>
+
+    <script>
+        function checkStorage() {
+            const output = document.getElementById('output');
+            const data = sessionStorage.getItem('latestEvaluation');
+
+            if (data) {
+                try {
+                    const parsed = JSON.parse(data);
+                    output.textContent = 'SessionStorage Data Found:\n' + JSON.stringify(parsed, null, 2);
+                } catch (e) {
+                    output.textContent = 'Error parsing data: ' + e.message;
+                }
+            } else {
+                output.textContent = 'No data in sessionStorage';
+            }
+        }
+
+        function testNavigation() {
+            const testData = {
+                id: 'test-123',
+                deviceName: 'Test Device',
+                deviceDescription: 'Test Description',
+                intendedPurpose: 'Test Purpose',
+                classification: {
+                    mdrApplicable: true,
+                    mdrClass: 'IIa',
+                    aiActApplicable: false,
+                    gdprApplicable: false,
+                    overallComplianceStatus: 'Conditional'
+                },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                status: 'draft'
+            };
+
+            sessionStorage.setItem('latestEvaluation', JSON.stringify(testData));
+            window.location.href = '/profiles';
+        }
+    </script>
+</body>
+</html>

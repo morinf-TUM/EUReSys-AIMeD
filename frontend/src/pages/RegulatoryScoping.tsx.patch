@@ -1,0 +1,133 @@
+--- a/frontend/src/pages/RegulatoryScoping.tsx
++++ b/frontend/src/pages/RegulatoryScoping.tsx
+@@ -487,64 +487,11 @@ Medical Device Regulation (EU 2017/745) classification based on your device in
+               </Box>
+             ) : (
+               <Box>
+-                <Typography variant="body2" paragraph>
+-                  No classification results available. Please ensure you have completed the previous steps.
+-                </Typography>
+-                <Button
+-                  variant="contained"
+-                  onClick={async () => {
+-                    setLoading(true);
+-                    try {
+-                      // Get recommendation from engine
+-                      const recommendationResponse = await apiService.getRecommendation(
+-                        {
+-                          deviceName: profile.deviceName || '',
+-                          deviceDescription: profile.deviceDescription || '',
+-                          isMedicalPurpose: true, // Assume medical for now
+-                          usesAI: true // Assume AI for now
+-                        },
+-                        profile.intendedPurpose || ''
+-                      );
+-
+-                      if (recommendationResponse.success) {
+-                        const recommendation = recommendationResponse.data;
+-
+-                        // Convert recommendation to classification format
+-                        const classification = {
+-                          mdrApplicable: recommendation.mdr_classification !== 'Not applicable',
+-                          mdrClass: recommendation.mdr_classification as 'I' | 'IIa' | 'IIb' | 'III' | 'Not Applicable',
+-                          mdrRules: recommendation.regulatory_references?.mdr || [],
+-                          mdrJustification: recommendation.justification || [],
+-                          aiActApplicable: recommendation.ai_act_classification !== 'Not applicable',
+-                          aiActHighRisk: recommendation.ai_act_classification === 'High-risk',
+-                          gdprApplicable: recommendation.gdpr_requirements === 'DPIA required',
+-                          gdprRequiresDPIA: recommendation.gdpr_requirements === 'DPIA required',
+-                          overallComplianceStatus: 'Conditional' as 'Conditional'
+-                        };
+-
+-                        // Generate LLM comment
+-                        const llmComment = `Comment by Mistral AI:\nBased on the device information (${profile.deviceName}: ${profile.deviceDescription}) and intended purpose (${profile.intendedPurpose}), the MDR classification of ${recommendation.mdr_classification} appears appropriate. This classification aligns with MDR Annex VIII Rule 11 for software medical devices. The AI Act classification of "${recommendation.ai_act_classification}" is consistent with the medical AI system definition in AI Act Article 6(1). The GDPR requirement for "${recommendation.gdpr_requirements}" correctly reflects the processing of health data under Article 9. The classification engine has applied the regulatory rules correctly based on the provided inputs.`;
+-
+-                        // Store LLM comment for display
+-                        setProfile({...profile, llmComment: llmComment});
+-
+-                        setClassificationResult(classification);
+-                      } else {
+-                        setError('Failed to generate recommendation: ' + recommendationResponse.error);
+-                      }
+-                    } catch (err) {
+-                      setError('Failed to generate recommendation: ' + (err instanceof Error ? err.message : 'Unknown error'));
+-                    } finally {
+-                      setLoading(false);
+-                    }
+-                  }}
+-                  disabled={loading}
+-                >
+-                  Generate MDR Classification
+-                </Button>
++                <Typography variant="body2" paragraph>
++                  Loading classification results...
++                </Typography>
+               </Box>
+             )}
+           </Box>
+         );
+@@ -145,6 +92,58 @@ export default RegulatoryScoping;
+   });
+ 
+   const handleNext = async () => {
++  // Automatic classification generation for MDR Classification step
++  useEffect(() => {
++    const generateClassification = async () => {
++      // Only generate classification for MDR Classification step (step 3, index 2)
++      if (activeStep === 2 && !classificationResult && profile.deviceName && profile.intendedPurpose) {
++        try {
++          setLoading(true);
++          console.log('Generating automatic MDR classification');
++          
++          // Get recommendation from engine
++          const recommendationResponse = await apiService.getRecommendation(
++            {
++              deviceName: profile.deviceName,
++              deviceDescription: profile.deviceDescription || '',
++              isMedicalPurpose: true,
++              usesAI: true
++            },
++            profile.intendedPurpose
++          );
++          
++          if (recommendationResponse.success) {
++            const recommendation = recommendationResponse.data;
++            
++            // Convert recommendation to classification format
++            const classification: DeviceClassification = {
++              mdrApplicable: recommendation.mdr_classification !== 'Not applicable',
++              mdrClass: recommendation.mdr_classification as 'I' | 'IIa' | 'IIb' | 'III' | 'Not Applicable',
++              mdrRules: recommendation.regulatory_references?.mdr || [],
++              mdrJustification: recommendation.justification || [],
++              aiActApplicable: recommendation.ai_act_classification !== 'Not applicable',
++              aiActHighRisk: recommendation.ai_act_classification === 'High-risk',
++              gdprApplicable: recommendation.gdpr_requirements === 'DPIA required',
++              gdprRequiresDPIA: recommendation.gdpr_requirements === 'DPIA required',
++              overallComplianceStatus: 'Conditional' as 'Conditional'
++            };
++            
++            // Generate LLM comment
++            const llmComment = `Comment by Mistral AI:
++Based on the device information (${profile.deviceName}: ${profile.deviceDescription}) and intended purpose (${profile.intendedPurpose}), the MDR classification of ${recommendation.mdr_classification} appears appropriate. This classification aligns with MDR Annex VIII Rule 11 for software medical devices. The AI Act classification of "${recommendation.ai_act_classification}" is consistent with the medical AI system definition in AI Act Article 6(1). The GDPR requirement for "${recommendation.gdpr_requirements}" correctly reflects the processing of health data under Article 9. The classification engine has applied the regulatory rules correctly based on the provided inputs.`;
++            
++            // Store results
++            setProfile({...profile, llmComment: llmComment});
++            setClassificationResult(classification);
++          } else {
++            console.error('Failed to generate automatic classification:', recommendationResponse.error);
++          }
++        } catch (err) {
++          console.error('Error generating automatic classification:', err);
++        } finally {
++          setLoading(false);
++        }
++      }
++    };
++    
++    generateClassification();
++  }, [activeStep, classificationResult, profile.deviceName, profile.intendedPurpose]);
++
+   const handleNext = async () => {
+     if (activeStep === steps.length - 1) {
+       // Final step - submit all answers
+       await handleSubmit();
