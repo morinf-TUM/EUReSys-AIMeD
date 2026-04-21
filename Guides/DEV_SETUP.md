@@ -36,8 +36,8 @@ sudo npm install -g yarn
 ## 2. Clone the repository
 
 ```bash
-git clone <repo-url> TEF
-cd TEF
+git clone <repo-url> EUReSys-AIMeD
+cd EUReSys-AIMeD
 ```
 
 ---
@@ -75,6 +75,10 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+> `mistralai` is pinned to `<1.0` on purpose: `backend/llm/llm_service.py`
+> uses the 0.x SDK surface (`MistralClient`, `mistralai.models.chat_completion`).
+> Don't loosen the pin without porting the client. See `FOLLOWUPS.md`.
 
 ---
 
@@ -122,7 +126,7 @@ You need both processes running at the same time. Open two terminals.
 **Terminal A — Django backend (port 8000):**
 
 ```bash
-cd TEF
+cd EUReSys-AIMeD
 source venv/bin/activate
 python manage.py runserver
 ```
@@ -130,7 +134,7 @@ python manage.py runserver
 **Terminal B — React dev server (port 3000):**
 
 ```bash
-cd TEF/frontend
+cd EUReSys-AIMeD/frontend
 yarn start
 ```
 
@@ -154,6 +158,9 @@ With both servers running:
       DJANGO_SETTINGS_MODULE=backend.settings_test \
           python -m pytest backend/core/tests/test_recommendation_engine.py
       ```
+      > `backend.settings_test` is for non-DB tests only. Tests that touch
+      > the database still need the real Postgres (SQLite can't migrate
+      > `ArrayField`). See `FOLLOWUPS.md`.
 
 If all four pass, dev is up.
 

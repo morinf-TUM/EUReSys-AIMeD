@@ -3,13 +3,19 @@
 ## 🎯 Overview
 This guide gives you **complete control** over the user database. You can manage users directly through API endpoints or use database commands.
 
+> **Note on host and port.** The `curl` examples below assume the backend
+> listens on `http://localhost:8000`, which is the default in
+> `Guides/DEV_SETUP.md`. In production, or in a coexistence setup where
+> gunicorn is bound to a different port (see `Guides/PROD_SETUP.md`),
+> substitute your actual backend host and port.
+
 ## 🚀 API Endpoints (Recommended)
 
 ### 1. List All Users
 **GET** `/api/users/`
 
 ```bash
-curl -X GET http://localhost:8001/api/users/
+curl -X GET http://localhost:8000/api/users/
 ```
 
 **Response:**
@@ -36,7 +42,7 @@ curl -X GET http://localhost:8001/api/users/
 **DELETE** `/api/users/<email>/`
 
 ```bash
-curl -X DELETE http://localhost:8001/api/users/admin@example.com/
+curl -X DELETE http://localhost:8000/api/users/admin@example.com/
 ```
 
 **Response:**
@@ -57,7 +63,7 @@ curl -X DELETE http://localhost:8001/api/users/admin@example.com/
 **DELETE** `/api/users/all/`
 
 ```bash
-curl -X DELETE http://localhost:8001/api/users/all/
+curl -X DELETE http://localhost:8000/api/users/all/
 ```
 
 **Response:**
@@ -75,7 +81,7 @@ curl -X DELETE http://localhost:8001/api/users/all/
 **POST** `/api/users/reset-password/`
 
 ```bash
-curl -X POST http://localhost:8001/api/users/reset-password/ \
+curl -X POST http://localhost:8000/api/users/reset-password/ \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@example.com", "password": "newpassword123"}'
 ```
@@ -129,24 +135,24 @@ SELECT COUNT(*) FROM auth_user;
 
 ### Step 1: Delete Your User
 ```bash
-curl -X DELETE http://localhost:8001/api/users/admin@example.com/
+curl -X DELETE http://localhost:8000/api/users/admin@example.com/
 ```
 
 ### Step 2: Verify Deletion
 ```bash
-curl -X GET http://localhost:8001/api/users/
+curl -X GET http://localhost:8000/api/users/
 ```
 
 ### Step 3: Register Fresh Account
 ```bash
-curl -X POST http://localhost:8001/api/auth/register/ \
+curl -X POST http://localhost:8000/api/auth/register/ \
   -H "Content-Type: application/json" \
   -d '{"username": "morinf", "email": "admin@example.com", "password": "yournewpassword", "company": "TUM"}'
 ```
 
 ### Step 4: Login with New Credentials
 ```bash
-curl -X POST http://localhost:8001/api/auth/login/ \
+curl -X POST http://localhost:8000/api/auth/login/ \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@example.com", "password": "yournewpassword"}'
 ```
@@ -167,7 +173,7 @@ PGPASSWORD='password' psql -U regulatory_user -h localhost -d regulatory_db -c "
 
 ### Test Login
 ```bash
-curl -X POST http://localhost:8001/api/auth/login/ \
+curl -X POST http://localhost:8000/api/auth/login/ \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@example.com", "password": "yourpassword"}'
 ```

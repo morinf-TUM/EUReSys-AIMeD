@@ -59,7 +59,7 @@ Before you begin, ensure you have the following installed:
 
 - **Python 3.10+** (tested with 3.10.12)
 - **Node.js 18+** (tested with 18.20.8)
-- **PostgreSQL 12+**
+- **PostgreSQL 14+**
 - **npm or yarn** for package management
 
 ### 1. Clone Repository
@@ -111,14 +111,7 @@ pip install --upgrade pip
 
 # Install required dependencies
 pip install -r requirements.txt
-
-# Install additional dependencies (not in requirements.txt)
-pip install django-cors-headers mistralai
 ```
-
-**Note**: The `requirements.txt` file is currently incomplete. The following packages are also required:
-- `django-cors-headers` (for frontend-backend communication)
-- `mistralai` (for LLM integration, optional)
 
 Run database migrations:
 
@@ -290,9 +283,10 @@ bash tests/test_frontend_manual.sh
 
 ## Documentation
 
-### Deployment and Configuration Guides
+### Setup and Configuration Guides
 
-- **[DEPLOYMENT_GUIDE.md](./Guides/DEPLOYMENT_GUIDE.md)** - Complete production deployment instructions (PostgreSQL, Nginx, Gunicorn, SSL, Docker, Kubernetes)
+- **[DEV_SETUP.md](./Guides/DEV_SETUP.md)** - Local development install (React dev server + `manage.py runserver`)
+- **[PROD_SETUP.md](./Guides/PROD_SETUP.md)** - Production deployment on a host (gunicorn + nginx + systemd, static frontend bundle)
 - **[LOCAL_MISTRAL_SETUP.md](./Guides/LOCAL_MISTRAL_SETUP.md)** - Detailed LLM configuration and setup
 - **[USER_MANAGEMENT_GUIDE.md](./Guides/USER_MANAGEMENT_GUIDE.md)** - User administration and management via API
 
@@ -322,8 +316,8 @@ psql -U regulatory_user -d regulatory_db -h localhost
 **Issue: Missing Python dependencies**
 
 ```bash
-# Install missing packages
-pip install django-cors-headers mistralai
+# Reinstall from the pinned set
+pip install -r requirements.txt
 
 # Verify installation
 pip list | grep -E "django-cors-headers|mistralai"
@@ -373,7 +367,7 @@ PORT=3001 npm start  # Use different port
 ## Project Structure
 
 ```
-TEF/
+EUReSys-AIMeD/
 ├── backend/                 # Django backend application
 │   ├── core/               # Core Django app (models, views, etc.)
 │   ├── llm/                # LLM integration service
@@ -387,7 +381,8 @@ TEF/
 │   │   └── types/         # TypeScript type definitions
 │   └── package.json       # Frontend dependencies
 ├── Guides/                 # Documentation guides
-│   ├── DEPLOYMENT_GUIDE.md
+│   ├── DEV_SETUP.md
+│   ├── PROD_SETUP.md
 │   ├── LOCAL_MISTRAL_SETUP.md
 │   └── USER_MANAGEMENT_GUIDE.md
 ├── tests/                  # Test suite

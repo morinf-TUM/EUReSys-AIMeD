@@ -21,7 +21,7 @@ if settings.DEBUG:
     # Add templates URL pattern
     from django.views.static import serve
     import os
-    # Use the current project directory (TEF root) - BASE_DIR is already the TEF root
+    # BASE_DIR is the repo root (computed by Django from this file's location).
     templates_root = os.path.join(settings.BASE_DIR, 'extracted_templates')
     print(f"📁 Templates will be served from: {templates_root}")
     print(f"📁 Templates directory exists: {os.path.exists(templates_root)}")

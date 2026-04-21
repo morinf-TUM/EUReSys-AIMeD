@@ -15,8 +15,11 @@ This guide uses placeholder values you must replace:
 - `<INSTALL_DIR>` — where you clone the repo (default: `/home/<USER>/regulatory_system`)
 - `<NGINX_PORT>` — the port nginx listens on (default: `80`, or `8080` when
   co-existing with another service on the same host)
-- `<GUNICORN_PORT>` — the port gunicorn listens on behind nginx
-  (default: `8000`, or `8001` when co-existing with a dev server on 8000)
+- `<GUNICORN_PORT>` — the port gunicorn listens on behind nginx. The
+  **production default is `8000`**; use `8001` only in the coexistence
+  scenario (dev `runserver` and prod gunicorn on the same host, see the
+  side-by-side section below). The systemd and nginx templates ship with
+  `8000` baked in — override only if you are in coexistence mode.
 
 ---
 
