@@ -561,8 +561,7 @@ class DecisionEngine:
 > The `DecisionTreeTestCases` and `DecisionTreeValidator` classes
 > below are **illustrative** — they show what a structured test suite
 > for the decision engine would look like, not code that lives in the
-> repo. Actual tests are in `tests/regulatory/test_mdr_classification.py`,
-> `tests/regulatory/test_ai_act_classification.py`, and
+> repo. The only current decision-engine-adjacent test is
 > `backend/core/tests/test_recommendation_engine.py`.
 
 ### 8.1 Test Cases (illustrative)

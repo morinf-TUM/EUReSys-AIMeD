@@ -205,11 +205,9 @@ Verify your setup is working correctly:
 Run the test suite to verify functionality:
 
 ```bash
-# Run backend tests
-python manage.py test
-
-# Run specific test modules
-python tests/test_runner.py
+# Run the backend unit test
+DJANGO_SETTINGS_MODULE=backend.settings_test \
+    python -m pytest backend/core/tests/test_recommendation_engine.py
 ```
 
 ## Configuration (Optional)
@@ -251,34 +249,26 @@ Key environment variables for development (optional):
 
 ## Testing
 
-### Run All Tests
+### Backend (pytest)
 
 ```bash
-# Run Django test suite
-python manage.py test
-
-# Run comprehensive test runner
-python tests/test_runner.py
-
-# Run specific test modules
-python -m pytest tests/regulatory/test_mdr_classification.py
-python -m pytest tests/regulatory/test_ai_act_classification.py
+# Unit test for the recommendation engine (no DB needed)
+DJANGO_SETTINGS_MODULE=backend.settings_test \
+    python -m pytest backend/core/tests/test_recommendation_engine.py
 ```
 
-### Run Frontend Tests
+`backend.settings_test` is for non-DB tests only. Tests that touch the
+database need the real Postgres, because SQLite cannot migrate
+`ArrayField`.
+
+### Frontend (Playwright)
+
+End-to-end tests live in `frontend/src/test/`. Both the backend
+(`:8000`) and the frontend dev server (`:3000`) must be running.
 
 ```bash
 cd frontend
-npm test
-# OR
-yarn test
-```
-
-### Manual API Testing
-
-```bash
-# Test frontend-backend integration
-bash tests/test_frontend_manual.sh
+npx playwright test
 ```
 
 ## Documentation
@@ -385,9 +375,6 @@ EUReSys-AIMeD/
 │   ├── PROD_SETUP.md
 │   ├── LOCAL_MISTRAL_SETUP.md
 │   └── USER_MANAGEMENT_GUIDE.md
-├── tests/                  # Test suite
-│   ├── regulatory/        # Regulatory logic tests
-│   └── test_runner.py     # Comprehensive test runner
 ├── manage.py              # Django management script
 └── requirements.txt       # Python dependencies
 ```
